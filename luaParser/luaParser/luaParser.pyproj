@@ -22,6 +22,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="example.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="luaParser.py" />
     <Compile Include="parser.py">
       <SubType>Code</SubType>
