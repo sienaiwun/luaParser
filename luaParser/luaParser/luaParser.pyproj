@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>85f83e96-e44e-40ba-8f2d-dc4a0b67fdf0</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>luaParser.py</StartupFile>
+    <StartupFile>parser.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -23,6 +23,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="luaParser.py" />
+    <Compile Include="parser.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PyLuaTblParser.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
