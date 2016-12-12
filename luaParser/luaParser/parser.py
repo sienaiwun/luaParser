@@ -2,12 +2,38 @@
 class ParerError(Exception):
     pass
 
+class Encoder(object):
+    def encode(self, obj):
+        returnString = ''
+        typeId = type(obj)
+        if typeId == str:
+            return '"%s"' % obj.replace(r'"', r'\"')
+        elif typeId in [type(5),type(5.0), type(2+3j),type(1<<31)]:
+            return str(obj)
+        elif typeId is bool:
+            return str(obj).lowercase()
+        elif object is None:
+            return 'nil'
+        elif typeId in [list,dict,tuple]:
+            returnString +=  '{'            
+            if typeId == dict:
+                items = []
+                for k, v in obj.iteritems():
+                    if type(k) == int :
+                        items.append(self.encode(v))
+                    else:
+                        items.append(str(k)+ '=' + self.encode(v))
+                returnString += (',' ).join(items) 
+            else:
+                returnString += ','.join([self.encode(item) for item in obj]) 
+            returnString +=  '}'
+            return returnString
+        pass
 class Parser(object):
     def __init__(self):
         self._ch = ''
         self._at = 0
         self._depth = 0
-        self._index = 0
         pass
 
     def eat_char(self,c):
@@ -15,12 +41,12 @@ class Parser(object):
             self.next_char()
             return True
         return False
+    
     def parse_text(self,text):
         if not text or not isinstance(text, basestring):
             return
         self._text = text
-        self._len = len(text)
-        
+        self._len = len(text)        
         self.next_char()
         return self.text_value()
        
@@ -56,12 +82,13 @@ class Parser(object):
             return self.make_word();
         raise ParerError('value no matched pattern')
 
+    key_words = {'true': True, 'false': False, 'nil': None}
     def make_word(self):
         intStr = ''
         while self._ch and self._ch.isalnum():
             intStr += self._ch;    
             self.next_char()
-        return intStr
+        return self.key_words.get(intStr,intStr)
 
     def make_bracket_string(self,endChar):
         start_char = self._ch
@@ -106,6 +133,7 @@ class Parser(object):
 
     def note(self):
         dict = {}
+        dict_index = 0
         index = 0
         self._depth += 1
         if self.eat_char('}'):
@@ -126,6 +154,7 @@ class Parser(object):
                         self._depth -= 1
                         return dict
                     if  self._ch == ',':
+                        self.next_char()
                         continue;
                     else:
                         key = self.text_value()
@@ -135,15 +164,18 @@ class Parser(object):
                                 value = self.text_value()
                                 dict[key] = value
                             elif self.eat_char(','):
-                                dict[self._index] = key
-                                self._index += 1
+                                dict[dict_index] = key
+                                dict_index += 1
                             key = None
             raise ParerError('note Error')
 
 
 if __name__ == '__main__':
-    test_str = '{array = {65,23,5}}'
+    test_str2  = '{array = {65,23,5,},dict = {mixed = {43,54.33,false,9,string = "value",},array = {3,6,4,},string = "value",},}'
     digit_arar = '[-65.22]'
     a1 = Parser()
-    a= a1.parse_text(test_str)
-    print a
+    #a= a1.parse_text(test_str2)
+    #print a
+    b = Encoder()
+    test_dict = (1,2,3)
+    print b.encode(test_dict)

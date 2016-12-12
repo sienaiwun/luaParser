@@ -248,7 +248,9 @@ class SLPP(object):
 
 
 slpp = SLPP()
-test_str2 = '{array = {65,23,5}}'
+test_str2  = '{array = {65,23,5,},dict = {mixed = {43,54.33,false,9,string = "value",},array = {3,6,4,},string = "value",},}'
 test_str = '{array = {65,23,5,},dict = {mixed = {43,54.33,false,9,string = "value",},array = {3,6,4,},string = "value",},}'
-slpp.decode(test_str2)
+#slpp.decode(test_str2)
+test_dict = (1,2,3)
+str = slpp.encode(test_dict)
 __all__ = ['slpp']
