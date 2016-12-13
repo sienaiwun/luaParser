@@ -1,5 +1,9 @@
-
+# -*- coding: UTF-8 -*-
 class ParerError(Exception):
+    pass
+class A:
+    def f(self):
+        print "123"
     pass
 
 class Encoder(object):
@@ -30,10 +34,13 @@ class Encoder(object):
             return returnString
         pass
 class Parser(object):
-    def __init__(self):
+    def reset(self):
         self._ch = ''
         self._at = 0
         self._depth = 0
+        
+    def __init__(self):
+        self.reset()
         pass
 
     def eat_char(self,c):
@@ -43,8 +50,10 @@ class Parser(object):
         return False
     
     def parse_text(self,text):
+        self.reset()
         if not text or not isinstance(text, basestring):
             return
+
         self._text = text
         self._len = len(text)        
         self.next_char()
@@ -69,7 +78,7 @@ class Parser(object):
             if self.match_whie():
                 self.next_char()
             break;
-    #解析一段文字符号的值
+
     def text_value(self):
         self.skip_white()
         if self.eat_char('{'):
@@ -109,16 +118,48 @@ class Parser(object):
             intStr += self._ch;    
             self.next_char()
         return intStr
+    
+    def hex(self):
+        intStr = ''
+        hex_digit_str = "aAbBcCdDeEfF"
+        while self._ch and (self._ch.isdigit() or self._ch in hex_digit_str):
+            intStr += self._ch;    
+            self.next_char()
+        return intStr
+    def next_is_digit(self, error_str):
+        char = self._ch;
+        self.next_char();
+        if not char.isdigit():
+            raise ParerError(error_str)
+        return char
 
     def make_digit(self):
         num_str = ''
         if self.eat_char('-'):
             num_str = '-'
+            num_str += self.next_is_digit("minus error")
         num_str += self.make_digit_string()
         is_int = True
-        if self.eat_char('.'):
-            is_int = False
-            num_str += '.' + self.make_digit_string()
+        if num_str == '0' and self._ch in ['x','X']:
+            num_str += self._ch
+            self.next_char()
+            num_str += self.next_is_digit("hex error")
+            num_str += self.hex()
+        else:
+            if self.eat_char('.'):
+                is_int = False
+                num_str += '.'
+                num_str += self.next_is_digit("point error")
+                num_str += self.make_digit_string()
+            if self._ch and self._ch in ['e', 'E']:
+                is_int = False
+                num_str += self._ch
+                self.next_char()
+                if self._ch and self._ch  in ('+', '-'):
+                    num_str += self._ch
+                    self.next_char()
+                num_str += self.next_is_digit("float error")
+                num_str += self.make_digit_string()
         try:
             if is_int:
                 return int(num_str)
@@ -174,8 +215,9 @@ if __name__ == '__main__':
     test_str2  = '{array = {65,23,5,},dict = {mixed = {43,54.33,false,9,string = "value",},array = {3,6,4,},string = "value",},}'
     digit_arar = '[-65.22]'
     a1 = Parser()
-    #a= a1.parse_text(test_str2)
-    #print a
-    b = Encoder()
-    test_dict = (1,2,3)
-    print b.encode(test_dict)
+    a = a1.parse_text('0x3a')
+    b =  a1.parse_text('3')
+    print b
+   # b = Encoder()
+  #  test_dict = (1,2,3)
+ #   print b.encode(test_dict)
