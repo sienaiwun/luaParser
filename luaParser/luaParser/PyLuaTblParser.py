@@ -354,47 +354,23 @@ class PyLuaTblParser(object):
         return ret_str
 
     def skip_line_num(self,num):
-        '''
-        while self._ch is not None:
-            if self._ch in '\'\"':
+        char = self.next_char()
+        while char is not None:
+            if char in '\'\"':
                 self.back_char()
-                self.make_bracket_string(self._ch)
-            elif self.eat_char(']'):
-                index = self._at
+                self.make_bracket_string(char)
+            elif char == ']':
+                next_char = self.next_char()
                 count = num
-                while self._ch == '=' and count >0:
+                while next_char == '=' and count >0:
                     count -=1
                     self.next_char()
-                if  (count == 0 and self._ch == ']') or self._ch is None:
+                if  (count == 0 and self._ch == ']') or next_char is None:
                     return
-                else:
+                elif next_char == ']':
                     continue
-            self.next_char()
-        '''
-        c = self.next_char()
-        while c is not None:
-            print c
-            if c in '\'\"':
-                self.back_char()
-                self.make_bracket_string(c)
-            elif c == ']':
-                index = self._at
-                x = self.next_char()
-                i = num
-                while x is not None:
-                    if i == 0:
-                        break
-                    if x != '=':
-                        break
-                    i -= 1
-                    x = self.next_char()
-                if x is None or (i == 0 and x == ']'):
-                    break
-                elif x == ']':
-                    c = x
-                    continue
-            c = self.next_char()
-
+            char = self.next_char()
+        
             
     def do_skip_comment(self):
         if self.eat_char('['):
