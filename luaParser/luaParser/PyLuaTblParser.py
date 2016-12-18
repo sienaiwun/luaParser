@@ -20,10 +20,6 @@ class PyLuaTblParser(object):
             raise ParerError("Text error")
    
         self._len = len(self._text)    
-    #parse a string
-    def parse(self):
-        lua_list,lua_table = [],{}
-        table_string, table_fields = self.parseTable()
         
 
     def parse_token(self):
@@ -144,7 +140,7 @@ class PyLuaTblParser(object):
         char = self.next_valid_char()
         if char == '{':
             self.back_valid_char()
-            table_str,array =  self.parseTable()
+            table_str,_ =  self.parseTable()
             return table_str
         
         elif char in '\'\"':
@@ -202,7 +198,7 @@ class PyLuaTblParser(object):
             xstr, ok = self.read_lua_string()
             if ok:  # we get a xstring
                 expr2 += xstr
-                field = expr2
+                field_str = expr2
             else:
                 self.next_char()
                 key = self.parse_exp()
@@ -214,9 +210,9 @@ class PyLuaTblParser(object):
                     if self.next_valid_char() != '=':
                         raise ParseError('invalid table field')
                     expr2 = self.parse_exp()
-                    field = '[' + expr1 + ']' + '= ' + expr2
+                    field_str = '[' + expr1 + ']' + '= ' + expr2
                 else:
-                    raise ParseError('invalid table field')
+                    raise ParseError('invalid table field_str')
         else:
             self.back_valid_char()
             expr1 = self.parse_exp()
@@ -225,20 +221,22 @@ class PyLuaTblParser(object):
                 if not self.key_valid(expr1):
                     raise ParseError('invalid variable name : ' + expr1)
                 expr2 = self.parse_exp()
-                field = expr1 + '= ' + expr2
+                field_str = expr1 + '= ' + expr2
             elif char_2 is not None:
                 self.back_valid_char()
                 expr1, expr2 = None, expr1
-                field = expr2
+                field_str = expr2
             else:
-                raise ParseError('invalid table field')
+                raise ParseError('invalid table field_str')
 
         char = self.next_valid_char()
         if char not in ',;}':
             raise ParseError('syntax error near \"' + expr2 + '\"')
         else:
             self.back_char()
-        return field, [expr1, expr2]
+        return field_str, (self.__eval_index(expr1), self.__eval_expr(expr2))
+
+    
     # return (tableString, [(expr_key_1,expr_value_1),(expr_key_2,expr_value_2).. ]) 
     def parseTable(self):
         '''
@@ -248,7 +246,7 @@ class PyLuaTblParser(object):
     	fieldsep ::= `,? | `;?
         '''
         table_str = '{'
-        fields = []
+        expresions = []
         char = self.next_valid_char()
         if char != '{':
             raise ParerError('table error ')
@@ -258,21 +256,21 @@ class PyLuaTblParser(object):
                 raise Exception('a table must end with \'}\'')
             elif char == '}':
                 table_str += '}'
-                return table_str,fields
+                return table_str,self.getContainer(expresions)
             else:
                 self.back_valid_char()
-                field_text, field_fields = self.parse_fields()
+                field_text, field_expr = self.parse_fields()
                 table_str += field_text
-                fields.append(field_fields)
+                expresions.append( field_expr)
             char = self.next_valid_char()
             if char in ',;':
                 if self.next_valid_char() == '}':
                     table_str += '}'
-                    return table_str,fields
+                    return table_str,self.getContainer(expresions)
                 self.back_char()
             elif char == '}':
                 table_str += '}'
-                return table_str,fields
+                return table_str,self.getContainer(expresions)
             else:
                 raise ParseException('table error')
             table_str += ','
@@ -384,14 +382,10 @@ class PyLuaTblParser(object):
         else:
            self.skip_line()
 
-    def pause_key_value(self, field):
-        expr_k, expr_v = field[0], field[1]
-        if expr_k is None:
-            return None, self.__eval_expr(expr_v)
-        else:
-            return self.__eval_index(expr_k), self.__eval_expr(expr_v)
-
+   
     def __eval_index(self, index):
+        if index == None:
+            return None
         # the table index must be a string or a number
         n = len(index)
         if self.isString_symmetry(index):
@@ -404,17 +398,6 @@ class PyLuaTblParser(object):
             else:
                 return x
 
-    def __merge_result(self, lst, dct):
-        if len(dct) == 0:
-            return lst
-        elif len(lst) == 0:
-            return dct
-        else:
-            l = len(lst)
-            for i in range(l):
-                if lst[i] is not None:
-                    dct[i+1] = lst[i]
-            return dct
 
     def __eval_expr(self, expr):
         if expr == 'nil':
@@ -486,19 +469,22 @@ class PyLuaTblParser(object):
             return c
         return '\\' + c
 
+    def getContainer(self,expression_list):
+        dct = dict((k,v) for (k,v) in expression_list if k is not None and v is not None)
+        lst = [v for (k,v) in expression_list if k is None]
+        if len(dct) == 0:
+            return lst
+        elif len(lst) == 0:
+            return dct
+        else:
+            for i in range(len(lst)):
+                if lst[i] is not None:
+                    dct[i+1] = lst[i]
+            return dct
     #return a container
     def parse_text(self):
-        table_str,table_fieds = self.parseTable()
-        lst, dct = [], {}
-        for field in table_fieds:
-            # print '__parse_field : ' + str(field)
-            k, v = self.pause_key_value(field)
-            if k is not None:
-                if v is not None:
-                    dct[k] = v
-            else:
-                lst.append(v)
-        return self.__merge_result(lst, dct)
+        table_str,container = self.parseTable()
+        return container
 
     def load(self, test_str):
         parser = PyLuaTblParser(test_str)
@@ -538,7 +524,7 @@ class PyLuaTblParser(object):
         length = len(d)
         keys = d.keys()
         if self.is_top_table :
-            ret = self.__indent(indent)+'{'
+            ret =  ' '*(indent) +'{'
             self.is_top_table = False
         else:
             ret = '{'
@@ -569,7 +555,7 @@ class PyLuaTblParser(object):
                 key_string = ''
                 if indent_factor > 0:
                     key_string += '\n'
-                key_string += self.__indent(new_indent)
+                key_string += ' '*(new_indent)
                 key_string += self.__dump_index(key)
                 key_string += '='
                 if indent_factor > 0:
@@ -579,15 +565,10 @@ class PyLuaTblParser(object):
             ret += ','.join(stringVec)
             if indent_factor > 0:
                 ret += '\n'
-            ret += self.__indent(indent)
+            ret += ' '*(indent)
         ret += '}'
         return ret
-
-    def __indent(self, indent):
-        ret = ''
-        for i in range(indent):
-            ret += ' '
-        return ret
+    
 
     def __dump_value(self, v, indent_factor, indent):
         if isinstance(v, bool):
