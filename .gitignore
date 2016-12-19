@@ -5,7 +5,9 @@
 *.suo
 *.user
 *.sln.docstates
-
+*.pyc
+*.txt
+*.pyproj
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
@@ -187,3 +189,7 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+*.pyproj
+luaParser/luaParser/luaParser.pyproj
+luaParser/luaParser/luaParser.pyproj
+*.pyproj

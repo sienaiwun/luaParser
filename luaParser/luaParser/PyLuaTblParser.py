@@ -68,25 +68,7 @@ class PyLuaTblParser(object):
         if char is not None:
             self.back_char()
         return token_str
-    def make_digit_string(self):
-        '''
-        char = self._ch
-        ret_str = ''
-        while char.isdigit():
-            ret_str += ret_str
-            self.next_char()
-            char = self._ch
-        return ret_str
-        '''
-        ret_str = ''
-        c = self.next_char()
-        while c.isdigit():
-            ret_str += c
-            c = self.next_char()
-        if c is not None:
-            self.back_char()
-
-        return ret_str
+ 
     #read lua_string,
     def eat_lua_string_with_equal_num(self,equal_num):
         ret_string = ''
@@ -139,32 +121,80 @@ class PyLuaTblParser(object):
             return '"' + text + '"', True
         self._prev, self._at = prev, at
         return '', False
-
-    def eat_digit(self):
+    def eat_hex(self):
+        intStr = ''
+        hex_digit_str = "aAbBcCdDeEfF"
+        while self._ch and (self._ch.isdigit() or self._ch in hex_digit_str):
+            intStr += self._ch;    
+            self.next_char()
+        return intStr
+    def make_digit(self):
+        num_str = ''
+        if self.eat_char('-'):
+            num_str = '-'
+            num_str += self.next_is_digit("minus error")
+        num_str += self.eat_digit_string()
+        is_int = True
+        if num_str == '0' and self._ch in ['x','X']:
+            num_str += self._ch
+            self.next_char()
+            num_str += self.next_is_digit("eat_hex error")
+            num_str += self.eat_hex()
+        else:
+            if self.eat_char('.'):
+                is_int = False
+                num_str += '.'
+                num_str += self.next_is_digit("point error")
+                num_str += self.eat_digit_string()
+            if self._ch and self._ch in ['e', 'E']:
+                is_int = False
+                num_str += self._ch
+                self.next_char()
+                if self._ch and self._ch  in ('+', '-'):
+                    num_str += self._ch
+                    self.next_char()
+                num_str += self.next_is_digit("float error")
+                num_str += self.eat_digit_string()
+        try:
+            if is_int:
+                return int(num_str)
+            else:
+                return float(num_str)
+        except:
+            pass
+   
+     #digit string 's correctness is hanled by str_to_num function.
+    def eat_digti(self):
         ret_str = ''
         char = self._ch
         if char.isdigit():
-            ret_str += self.make_digit_string()
+            ret_str += self.eat_digit_string()
+            if ret_str == '0' and self._ch in ['x','X']:
+                ret_str += self._ch
+                self.next_char()
+                ret_str += self.eat_hex()
+            else :
+                ret_str += self.eat_digit_string()
         elif char in '+-':
             ret_str += char
             self.next_char()
-            ret_str += self.make_digit_string()
+            ret_str += self.eat_digit_string()
         char = self._ch
         if char == '.':
             ret_str += char
             self.next_char()
-            ret_str += self.make_digit_string()
+            ret_str += self.eat_digit_string()
         char = self._ch
         if char in 'eE':
             ret_str += char
             self.next_char()
             next_char = self._ch
             if next_char.isdigit():
-                ret_str += self.make_digit_string()
+                ret_str += self.eat_digit_string()
             elif next_char in '+-':
                 ret_str += next_char
                 self.next_char()
-                ret_str += self.make_digit_string()
+                ret_str += self.eat_digit_string()
         try:
             self.str_to_num(ret_str)
         except:
@@ -172,6 +202,7 @@ class PyLuaTblParser(object):
         
         self.back_char() #next char point to the char next to digit array
         return ret_str
+   
     def eat_exp(self):
         char = self.next_valid_char()
         if char == '{':
@@ -182,7 +213,7 @@ class PyLuaTblParser(object):
         elif char in '\'\"':
             return self.eat_bracket_string(char)
         elif char.isdigit() or char in '-+.':
-            return self.eat_digit()
+            return self.eat_digti()
         elif char.isalpha() or char == '_':
             self.back_valid_char()
             token_str = self.eat_token()
@@ -426,19 +457,17 @@ class PyLuaTblParser(object):
             return self.parse_str(index[1:n-1])
         else:
             try:
-                tmp =  self.str_to_num(index)
+                return self.str_to_num(index)
             except:
                 return index
-            else:
-                return tmp
+               
 
     
     key_words = {'true': True, 'false': False, 'nil': None}
     def parse_expr(self, expr):
         if self.key_words.has_key(expr):
            return  self.key_words[expr]
-        n = len(expr)
-        if n > 0 and expr[0] == '{':  # table
+        if len(expr) > 0 and expr[0] == '{':  # tabl
             table_parser =  PyLuaTblParser(expr)
             expr_str,_ = table_parser.eat_text()
             return expr_str
@@ -632,7 +661,7 @@ class PyLuaTblParser(object):
 
     
 
-    def make_digit_string(self):
+    def eat_digit_string(self):
         intStr = ''
         while self._ch and self._ch.isdigit():
             intStr += self._ch;    
@@ -642,7 +671,7 @@ class PyLuaTblParser(object):
     def str_to_num(self,s):
         err_msg = '\"' + s + '\" cannot be converted to a number'
         try:
-            i = int(s)
+            i = int(s,0)
         except:
             try:
                 f = float(s)
@@ -653,26 +682,20 @@ class PyLuaTblParser(object):
         else:
             return i
     
-    def hex(self):
-        intStr = ''
-        hex_digit_str = "aAbBcCdDeEfF"
-        while self._ch and (self._ch.isdigit() or self._ch in hex_digit_str):
-            intStr += self._ch;    
-            self.next_char()
-        return intStr
+   
     def next_is_digit(self, error_str):
         char = self.next_char()
 
         if not char.isdigit():
             raise ParerError(error_str)
         return char
-    def loadDict(self, d):
-        for k in d.keys():
+    def loadDict(self, dct):
+        for k in dct.keys():
             if not isinstance(k, (int, float, str)):
-                del d[k]
+                del dct[k]
         old_Value = self.incident_store()
         self.incident_refresh()
-        s = self.dict_to_dump(d)
+        s = self.dict_to_dump(dct)
         self.indident_load(old_Value)
         self.load(s)
     
@@ -689,11 +712,11 @@ class PyLuaTblParser(object):
             return ret
         return tmp
 
-    def update(self,d):
+    def update(self,dct):
         if self.is_list:
             raise ParseError("not surport")
         else:
-            self.container.update(d)
+            self.container.update(dct)
 
     def __getitem__(self, item):
         if self.is_list:
@@ -704,40 +727,7 @@ class PyLuaTblParser(object):
                 return self.container[item-1]
         else:
             return self.container[item]
-    def make_digit(self):
-        num_str = ''
-        if self.eat_char('-'):
-            num_str = '-'
-            num_str += self.next_is_digit("minus error")
-        num_str += self.make_digit_string()
-        is_int = True
-        if num_str == '0' and self._ch in ['x','X']:
-            num_str += self._ch
-            self.next_char()
-            num_str += self.next_is_digit("hex error")
-            num_str += self.hex()
-        else:
-            if self.eat_char('.'):
-                is_int = False
-                num_str += '.'
-                num_str += self.next_is_digit("point error")
-                num_str += self.make_digit_string()
-            if self._ch and self._ch in ['e', 'E']:
-                is_int = False
-                num_str += self._ch
-                self.next_char()
-                if self._ch and self._ch  in ('+', '-'):
-                    num_str += self._ch
-                    self.next_char()
-                num_str += self.next_is_digit("float error")
-                num_str += self.make_digit_string()
-        try:
-            if is_int:
-                return int(num_str)
-            else:
-                return float(num_str)
-        except:
-            pass
+  
     def isWord(ch):
         if ch.isalpha() or ch.isdigit():
             return True
@@ -780,6 +770,9 @@ class PyLuaTblParser(object):
                                 dict_index += 1
                             key = None
             raise ParerError('note Error')
+
+
+__all__ = ['PyLuaTblParser']
 '''
 if __name__ == '__main__':
     a1 = PyLuaTblParser()
