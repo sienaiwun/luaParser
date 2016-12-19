@@ -2,7 +2,24 @@
 class ParerError(Exception):
     pass
 
-escape_dict = {'a': '\a', 'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t', 'v': '\v'}
+class Stack:
+     def __init__(self):
+         self.items = []
+
+     def isEmpty(self):
+         return self.items == []
+
+     def push(self, item):
+         self.items.append(item)
+
+     def pop(self):
+         return self.items.pop()
+
+     def top(self):
+         return self.items[len(self.items)-1]
+
+     def size(self):
+         return len(self.items)
 
 class PyLuaTblParser(object):
     def reset(self):
@@ -11,6 +28,9 @@ class PyLuaTblParser(object):
         self._depth = 0
         self._prev = -1
         self.is_top_table = True
+        
+
+        
 
     
     def __init__(self, text= "default") :
@@ -24,7 +44,21 @@ class PyLuaTblParser(object):
                          '\r': r'\r', '\t': r'\t', '\v': r'\v', '\\': r'\\',
                          '\'': r'\'','\"': r'\"', '[': r'\[', ']': r'\]'}
         self._inv_seq_char_map = dict((v, k) for k, v in self._esc_seq_table.iteritems())
+        self.indent_stack = Stack()
+        self.indent_stack.push(0)
+        self.incident_offset = 4
 
+    def incident_store(self):
+        return self.indent_stack,self.incident_offset
+    
+    def incident_refresh(self,offset = 4):
+        self.indent_stack = Stack()
+        self.indent_stack.push(0)
+        self.incident_offset = offset
+
+    def indident_load(self,value):
+        self.indent_stack,self.incident_offset = value
+    
     def eat_token(self):
         char = self.next_char()
         token_str = ""
@@ -131,7 +165,6 @@ class PyLuaTblParser(object):
                 ret_str += next_char
                 self.next_char()
                 ret_str += self.make_digit_string()
-     
         try:
             self.str_to_num(ret_str)
         except:
@@ -459,14 +492,22 @@ class PyLuaTblParser(object):
         dct = dict((k,v) for (k,v) in expression_list if k is not None and v is not None)
         lst = [v for (k,v) in expression_list if k is None]
         if len(dct) == 0:
-            return lst,'{' + ','.join([self.value_to_dump(item, 0, 0) for item in lst]) + '}'
+            return lst,'{' + ','.join([self.value_to_dump(item) for item in lst]) + '}'
         elif len(lst) == 0:
-            return dct,self.dict_to_dump(dct, 4, 0)
+            old_Value = self.incident_store()
+            self.incident_refresh()
+            ret_str = dct,self.dict_to_dump(dct)
+            self.indident_load(old_Value)
+            return ret_str
         else:
             for i in range(len(lst)):
                 if lst[i] is not None:
                     dct[i+1] = lst[i]
-            return dct,self.dict_to_dump(dct, 4, 0)
+            old_Value = self.incident_store()
+            self.incident_refresh()
+            ret_str = dct,self.dict_to_dump(dct)
+            self.indident_load(old_Value)
+            return ret_str
     #return a container
     def eat_text(self):
         table_str,container,dump_str = self.eat_table()
@@ -492,51 +533,46 @@ class PyLuaTblParser(object):
         f.write(self.dump())
         f.close()
 
-    def container_to_dump(self, container):
-        if type(container) == list:
-            return '{' + ','.join([self.value_to_dump(item, 0, 0) for item in container]) + '}'
-        return self.dict_to_dump(container, 4, 0)
     def char_to_dump(self, c):
         if self._esc_seq_table.has_key(c):
             return self._esc_seq_table[c]
         return c
 
-    def dict_to_dump(self, dict,indent_factor, indent):
-        length = len(dict)
-        keys = dict.keys()
-        is_indented = indent_factor > 0
-        if self.is_top_table :
-            ret =  ' '*(indent) +'{'
-            self.is_top_table = False
-        else:
-            ret = '{'
+    def dict_to_dump(self, dct):
+        length = len(dct)
+        keys = dct.keys()
+        is_indented = self.incident_offset > 0
+        last_indent =  self.indent_stack.top()
+        ret =  ' '*(last_indent) +'{'
         if length == 1:
             key = keys[0]
             ret += self.key_to_dump(key) + '='
-            if indent_factor > 0:
+            if is_indented:
                 ret += ' '
-            ret += self.value_to_dump(dict[key], indent_factor, indent)
+            ret += self.value_to_dump(dct[key])
         elif length != 0:
-            new_indent = indent + indent_factor
+            new_indent = last_indent + self.incident_offset
+            self.indent_stack.push(new_indent)
             stringVec = []
             for key in keys:
                 key_string = ''
-                if indent_factor > 0:
+                if is_indented:
                     key_string += '\n'
                 key_string += ' '*(new_indent) + self.key_to_dump(key) + '='
-                if indent_factor > 0:
+                if is_indented:
                     key_string += ' '
-                key_string += self.value_to_dump(dict[key], indent_factor, new_indent)
+                key_string += self.value_to_dump(dct[key])
                 stringVec.append(key_string)
             ret += ','.join(stringVec)
-            if indent_factor > 0:
+            if is_indented:
                 ret += '\n'
-            ret += ' '*(indent)
+            ret += ' '*(last_indent)
+            self.indent_stack.pop()
         ret += '}'
         return ret
     
 
-    def value_to_dump(self, value, indent_factor, indent):
+    def value_to_dump(self, value):
         typeId = type(value)
         if bool == typeId:
             if value:
@@ -548,9 +584,13 @@ class PyLuaTblParser(object):
         elif str == typeId:
             return r'"' + ''.join([self.char_to_dump(c) for c in value]) + r'"'
         elif list == typeId:
-            return '{' + ','.join([self.value_to_dump(item, 0, 0) for item in value]) + '}'
+            old_Value = self.incident_store()
+            self.incident_refresh()
+            ret_str =  '{' + ','.join([self.value_to_dump(item) for item in value]) + '}'
+            self.indident_load(old_Value)
+            return ret_str
         elif dict == typeId:
-            return self.dict_to_dump(value, indent_factor, indent)
+            return self.dict_to_dump(value)
         return 'nil'
 
     def key_to_dump(self, index):
@@ -630,7 +670,10 @@ class PyLuaTblParser(object):
         for k in d.keys():
             if not isinstance(k, (int, float, str)):
                 del d[k]
-        s = self.dict_to_dump(d, 4, 0)
+        old_Value = self.incident_store()
+        self.incident_refresh()
+        s = self.dict_to_dump(d)
+        self.indident_load(old_Value)
         self.load(s)
     
     # dump the internal data to a dict
