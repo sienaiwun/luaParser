@@ -51,7 +51,9 @@ class PyLuaTblParser(object):
     def incident_store(self):
         return self.indent_stack,self.incident_offset
     
-    def incident_refresh(self,offset = 4):
+    def incident_refresh(self,offset = None):
+        if offset == None:
+            offset = self.incident_offset
         self.indent_stack = Stack()
         self.indent_stack.push(0)
         self.incident_offset = offset
@@ -164,7 +166,7 @@ class PyLuaTblParser(object):
             pass
    
      #digit string 's correctness is hanled by str_to_num function.
-    def eat_digti(self):
+    def eat_digit(self):
         ret_str = ''
         char = self._ch
         if char.isdigit():
@@ -213,7 +215,7 @@ class PyLuaTblParser(object):
         elif char in '\'\"':
             return self.eat_bracket_string(char)
         elif char.isdigit() or char in '-+.':
-            return self.eat_digti()
+            return self.eat_digit()
         elif char.isalpha() or char == '_':
             self.back_valid_char()
             token_str = self.eat_token()
@@ -246,10 +248,10 @@ class PyLuaTblParser(object):
         else:
             try:
                  self.str_to_num(lua_str)
+                 return True
             except:
                 raise ParerError("lua string error")
-            else:
-                return True
+               
            
     def eat_fields(self):
         '''
